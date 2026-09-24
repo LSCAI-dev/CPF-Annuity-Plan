@@ -75,7 +75,11 @@ h1{background:var(--grad);-webkit-background-clip:text;background-clip:text;colo
 .stat{background:var(--surface);padding:12px 14px}
 .stat .k{font-size:12px;color:var(--muted)}
 .stat .v{font-size:19px;font-weight:600}
-.stat .v.warm{color:var(--warm)}
+.stat .v.warm{color:var(--teal)}
+.infl-box{border-color:#5A2A3C}
+.infl-box input{color:var(--pink)}
+.hero .grow{margin-top:10px;font-size:13px;color:var(--hero-ink);background:rgba(0,0,0,.18);display:inline-block;padding:4px 12px;border-radius:99px}
+.hero .grow:empty{display:none}
 .chart{width:100%;height:auto;display:block}
 .bars{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;align-items:end;height:190px}
 .bar{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;height:100%;border:0;background:none;color:var(--ink);cursor:pointer;padding:0;font:inherit}
@@ -94,13 +98,12 @@ th:first-child,td:first-child{text-align:left}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 </style>
 
-
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>OA Payout Planner</h1>
-    <p class="lede">Turn your CPF Ordinary Account balance into a fixed monthly income. Key in your figures — the payout updates instantly.</p>
+    <p class="lede">Turn your CPF Ordinary Account balance into a monthly income that rises with inflation. Key in your figures — the payout updates instantly.</p>
   </header>
 
   <div class="grid">
@@ -130,28 +133,39 @@ th:first-child,td:first-child{text-align:left}
           <div class="small rate-box"><input id="rate" class="num" inputmode="decimal" value="2.5"><span>% a year</span></div>
         </div>
         <div class="field">
-          <label class="label" for="keep">Leave behind</label>
-          <div class="small"><span>S$</span><input id="keep" class="num" inputmode="numeric" value="0"></div>
+          <label class="label" for="infl">Inflation</label>
+          <div class="small infl-box"><input id="infl" class="num" inputmode="decimal" value="3"><span>% a year</span></div>
         </div>
       </div>
-      <p class="hint">CPF OA guaranteed minimum is 2.5% a year. "Leave behind" is the balance you want left at the end (e.g. for nominees); 0 draws the account down fully.</p>
+      <div class="field">
+        <label class="label" for="keep">Leave behind</label>
+        <div class="small"><span>S$</span><input id="keep" class="num" inputmode="numeric" value="0"></div>
+      </div>
+      <p class="hint">CPF OA guaranteed minimum is 2.5% a year. Inflation raises your payout each year by that % — so you start lower and end higher. Set it to 0 for a flat payout. "Leave behind" is the balance left at the end (e.g. for nominees).</p>
     </section>
 
     <section class="panel" aria-label="Your payout" aria-live="polite">
       <div class="hero">
-        <div class="k">You can draw</div>
+        <div class="k">You start by drawing</div>
         <div class="v num" id="monthly">S$1,590</div>
         <p id="span">every month from age 65 to 85 (20 years)</p>
+        <p class="grow" id="grow"></p>
       </div>
       <div class="stats">
-        <div class="stat"><div class="k">Per year</div><div class="v num" id="perYear"></div></div>
+        <div class="stat"><div class="k">First-year total</div><div class="v num" id="perYear"></div></div>
+        <div class="stat"><div class="k">Final monthly payout</div><div class="v num" id="lastM"></div></div>
         <div class="stat"><div class="k">Total you receive</div><div class="v num" id="total"></div></div>
         <div class="stat"><div class="k">Interest earned</div><div class="v num warm" id="interest"></div></div>
+        <div class="stat"><div class="k">Flat payout (no inflation)</div><div class="v num" id="flat"></div></div>
         <div class="stat"><div class="k">Payouts end at</div><div class="v num" id="endAge"></div></div>
       </div>
       <div>
         <h2>Balance over time</h2>
         <svg class="chart" id="chart" viewBox="0 0 520 220" role="img" aria-label="OA balance declining over the payout period"></svg>
+      </div>
+      <div>
+        <h2>Monthly payout by age</h2>
+        <svg class="chart" id="pchart" viewBox="0 0 520 200" role="img" aria-label="Monthly payout rising each year with inflation"></svg>
       </div>
     </section>
   </div>
@@ -159,7 +173,7 @@ th:first-child,td:first-child{text-align:left}
   <section class="panel">
     <div>
       <h2>Compare: shorter vs longer payouts</h2>
-      <p class="hint" style="margin-top:4px">Tap a bar to switch. Fewer years means a bigger monthly amount; more years means smaller amounts that last longer.</p>
+      <p class="hint" style="margin-top:4px">Starting monthly payout for each length. Tap a bar to switch. Fewer years means bigger amounts; more years means smaller amounts that last longer.</p>
     </div>
     <div class="bars" id="bars"></div>
   </section>
@@ -167,14 +181,14 @@ th:first-child,td:first-child{text-align:left}
   <section class="panel">
     <details id="det">
       <summary>Year-by-year breakdown</summary>
-      <div class="tbl"><table><thead><tr><th>Age</th><th>Opening balance</th><th>Payouts</th><th>Interest</th><th>Closing balance</th></tr></thead><tbody id="tbody"></tbody></table></div>
+      <div class="tbl"><table><thead><tr><th>Age</th><th>Monthly payout</th><th>Opening balance</th><th>Payouts in year</th><th>Interest</th><th>Closing balance</th></tr></thead><tbody id="tbody"></tbody></table></div>
     </details>
   </section>
 
   <section class="panel note">
     <h2 style="color:var(--ink)">How this works</h2>
-    <p>The balance earns interest compounded monthly (annual rate ÷ 12), and a fixed amount is paid at the end of each month so the account reaches your "leave behind" figure on the last payout. Formula: <span class="num">PMT = (B − F·v<sup>n</sup>)·r / (1 − v<sup>n</sup>)</span>, where r = monthly rate, n = months, v = 1/(1+r).</p>
-    <p>Check: S$300,000 at 2.5% over 20 years gives S$1,590/month — the same as the reference planner.</p>
+    <p>The balance earns interest compounded monthly (annual rate ÷ 12). Payouts are made at the end of each month and stay the same within a year; each new year, the monthly payout rises by the inflation rate. The starting payout is solved so the account reaches your "leave behind" figure on the last payout: <span class="num">P₁ = (B·(1+r)<sup>n</sup> − F) ÷ Σ (1+g)<sup>year</sup>·(1+r)<sup>n−m</sup></span>, where r = monthly rate, g = inflation, n = months.</p>
+    <p>Check: with inflation at 0%, S$300,000 at 2.5% over 20 years gives S$1,590/month — the same as the reference planner.</p>
     <p>This is an illustration, not CPF's official calculator. Actual CPF interest is computed monthly and credited annually, withdrawal rules and Retirement Account set-asides apply, and rates can change. Confirm with CPF Board (cpf.gov.sg) before deciding.</p>
   </section>
 </div>
@@ -184,25 +198,27 @@ const $=id=>document.getElementById(id);
 const fmt=n=>'S$'+Math.round(n).toLocaleString('en-SG');
 const parse=s=>parseFloat(String(s).replace(/[^0-9.]/g,''))||0;
 const BALS=[100,200,300,400,500,600,700,800], YRS=[5,10,15,20,25,30];
-const st={bal:300000,age:65,yrs:20,rate:2.5,keep:0};
+const st={bal:300000,age:65,yrs:20,rate:2.5,keep:0,infl:3};
 
-function pmt(B,ratePct,years,F){
-  const n=Math.round(years*12), r=ratePct/100/12;
+// Starting monthly payout P1; payout is flat within a year and rises by g each year.
+function startPmt(B,ratePct,years,F,inflPct){
+  const n=Math.round(years*12), r=ratePct/100/12, g=inflPct/100;
   if(n<=0) return 0;
-  if(r===0) return (B-F)/n;
-  const v=Math.pow(1+r,-n);
-  return (B-F*v)*r/(1-v);
+  let C=0;
+  for(let m=1;m<=n;m++) C+=Math.pow(1+g,Math.floor((m-1)/12))*Math.pow(1+r,n-m);
+  return (B*Math.pow(1+r,n)-F)/C;
 }
 function schedule(){
-  const r=st.rate/100/12, m=pmt(st.bal,st.rate,st.yrs,st.keep);
-  let b=st.bal; const rows=[], pts=[{age:st.age,b}];
+  const r=st.rate/100/12, g=st.infl/100, p1=startPmt(st.bal,st.rate,st.yrs,st.keep,st.infl);
+  let b=st.bal, total=0; const rows=[], pts=[{age:st.age,b}];
   for(let y=0;y<st.yrs;y++){
-    const open=b; let int=0;
+    const m=p1*Math.pow(1+g,y), open=b; let int=0;
     for(let k=0;k<12;k++){const i=b*r; int+=i; b=b+i-m;}
-    rows.push({age:st.age+y,open,paid:m*12,int,close:Math.max(b,0)});
+    total+=m*12;
+    rows.push({age:st.age+y,m,open,paid:m*12,int,close:Math.max(b,0)});
     pts.push({age:st.age+y+1,b:Math.max(b,0)});
   }
-  return {m,rows,pts};
+  return {p1,rows,pts,total};
 }
 
 function chips(){
@@ -234,23 +250,44 @@ function niceStep(v){const p=Math.pow(10,Math.floor(Math.log10(v||1)));const f=v
 function short(v){return v>=1e6?'S$'+(v/1e6).toFixed(v%1e6?1:0)+'M':v>=1e3?'S$'+Math.round(v/1e3)+'k':'S$'+v;}
 
 function bars(){
-  const vals=YRS.map(y=>pmt(st.bal,st.rate,y,st.keep)), mx=Math.max(...vals,1);
+  const vals=YRS.map(y=>startPmt(st.bal,st.rate,y,st.keep,st.infl)), mx=Math.max(...vals,1);
   $('bars').innerHTML=YRS.map((y,i)=>`<button class="bar ${st.yrs===y?'on':''}" data-y="${y}" aria-label="${y} years: ${fmt(vals[i])} a month"><b>${fmt(vals[i])}</b><i style="height:${Math.max(4,vals[i]/mx*130)}px"></i><em>${y} yrs</em></button>`).join('');
 }
 
+function pchart(rows){
+  const W=520,H=200,L=58,R=14,T=22,B=28,w=W-L-R,h=H-T-B;
+  const mx=Math.max(...rows.map(r=>r.m),1), step=niceStep(mx/4), top=step*Math.ceil(mx/step);
+  const y=v=>T+h*(1-v/top), bw=w/rows.length;
+  let g='';
+  for(let v=0;v<=top+1;v+=step) g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono,monospace">S$${Math.round(v).toLocaleString('en-SG')}</text>`;
+  const every=Math.max(1,Math.ceil(rows.length/6));
+  rows.forEach((r,i)=>{
+    const x=L+i*bw+bw*.15, bh=h*r.m/top;
+    g+=`<rect x="${x.toFixed(1)}" y="${y(r.m).toFixed(1)}" width="${(bw*.7).toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="url(#gB)"/>`;
+    if(i%every===0||i===rows.length-1) g+=`<text x="${(x+bw*.35).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--muted)">${r.age}</text>`;
+  });
+  const f=rows[0], l=rows[rows.length-1], lx=L+(rows.length-1)*bw+bw*.5;
+  g+=`<text x="${L+bw*.5}" y="${y(f.m)-6}" text-anchor="start" font-size="11" font-weight="600" fill="var(--ink)" font-family="IBM Plex Mono,monospace">${fmt(f.m)}</text>`;
+  if(rows.length>1) g+=`<text x="${lx}" y="${y(l.m)-6}" text-anchor="end" font-size="11" font-weight="600" fill="var(--pink)" font-family="IBM Plex Mono,monospace">${fmt(l.m)}</text>`;
+  $('pchart').innerHTML=`<defs><linearGradient id="gB" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#7C6BFF"/><stop offset="1" stop-color="#EE6A8C"/></linearGradient></defs>`+g;
+}
+
 function render(){
-  const {m,rows,pts}=schedule();
-  const ok=st.bal>0&&st.yrs>0&&m>0;
+  const {p1,rows,pts,total}=schedule();
+  const ok=st.bal>0&&st.yrs>0&&p1>0;
+  const last=rows.length?rows[rows.length-1].m:0;
   $('ageOut').textContent=st.age;
-  $('monthly').textContent=ok?fmt(m):'—';
-  $('span').textContent=ok?`every month from age ${st.age} to ${st.age+st.yrs} (${st.yrs} year${st.yrs>1?'s':''})`:'Enter a balance above your "leave behind" amount and at least 1 year.';
-  const total=m*12*st.yrs;
-  $('perYear').textContent=ok?fmt(m*12):'—';
+  $('monthly').textContent=ok?fmt(p1):'—';
+  $('span').textContent=ok?`a month at age ${st.age}, paid until age ${st.age+st.yrs} (${st.yrs} year${st.yrs>1?'s':''})`:'Enter a balance above your "leave behind" amount and at least 1 year.';
+  $('grow').textContent=ok&&st.infl>0&&st.yrs>1?`Rises ${st.infl}% a year → ${fmt(last)} a month by age ${st.age+st.yrs-1}`:'';
+  $('perYear').textContent=ok?fmt(p1*12):'—';
+  $('lastM').textContent=ok?fmt(last):'—';
   $('total').textContent=ok?fmt(total):'—';
   $('interest').textContent=ok?fmt(total+st.keep-st.bal):'—';
+  $('flat').textContent=ok?fmt(startPmt(st.bal,st.rate,st.yrs,st.keep,0))+'/mth':'—';
   $('endAge').textContent='Age '+(st.age+st.yrs);
-  chips(); bars(); if(ok) chart(pts);
-  $('tbody').innerHTML=rows.map(r=>`<tr><td>${r.age}</td><td class="num">${fmt(r.open)}</td><td class="num">${fmt(r.paid)}</td><td class="num">${fmt(r.int)}</td><td class="num">${fmt(r.close)}</td></tr>`).join('');
+  chips(); bars(); if(ok){chart(pts);pchart(rows);}
+  $('tbody').innerHTML=rows.map(r=>`<tr><td>${r.age}</td><td class="num">${fmt(r.m)}</td><td class="num">${fmt(r.open)}</td><td class="num">${fmt(r.paid)}</td><td class="num">${fmt(r.int)}</td><td class="num">${fmt(r.close)}</td></tr>`).join('');
 }
 
 $('bal').addEventListener('input',e=>{st.bal=parse(e.target.value);render();});
@@ -258,6 +295,7 @@ $('bal').addEventListener('blur',e=>{e.target.value=st.bal.toLocaleString('en-SG
 $('age').addEventListener('input',e=>{st.age=+e.target.value;render();});
 $('yrs').addEventListener('input',e=>{st.yrs=Math.min(50,Math.max(0,Math.round(parse(e.target.value))));render();});
 $('rate').addEventListener('input',e=>{st.rate=Math.min(20,parse(e.target.value));render();});
+$('infl').addEventListener('input',e=>{st.infl=Math.min(20,parse(e.target.value));render();});
 $('keep').addEventListener('input',e=>{st.keep=parse(e.target.value);render();});
 $('keep').addEventListener('blur',e=>{e.target.value=st.keep.toLocaleString('en-SG');});
 document.addEventListener('click',e=>{
